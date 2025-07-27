@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Dep406Bot": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+@ScheduleAPI_HostAddress = http://localhost:5184
+
+GET {{ScheduleAPI_HostAddress}}/index/lectors/
+Accept: application/json
+
+###
