@@ -14,6 +14,7 @@ COPY ["Dep406Bot/Dep406Bot.csproj", "Dep406Bot/"]
 RUN dotnet restore "./Dep406Bot/Dep406Bot.csproj"
 COPY . .
 WORKDIR "/src/Dep406Bot"
+ENV MY_SECRET=$TelegramBot:ServiceApiKey
 RUN dotnet build "./Dep406Bot.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 # Этот этап используется для публикации проекта службы, который будет скопирован на последний этап

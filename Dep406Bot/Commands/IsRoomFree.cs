@@ -1,4 +1,5 @@
 ﻿using Dep406Bot.Interface;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -23,10 +24,14 @@ namespace Dep406Bot.Commands
         public async Task Realization(ITelegramBotClient client, Update update, CancellationToken cancellationToken)
         {
             var queryString = HttpUtility.ParseQueryString(string.Empty, Encoding.UTF8);
+            
             var mes = update.Message.Text.Split(" ");
-            string? schApiLink = Environment.GetEnvironmentVariable("ScheduleAPILink") + "/schedule/rooms/name/" + mes[1] + "/today";
+            
+            var schApiLink = $"{Environment.GetEnvironmentVariable("ScheduleAPILink")}/schedule/rooms/name/{mes[1]}/today";
             if (mes.Length == 3) 
             {
+                //var date = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss.ffff");
+
                 // создаем нынешнее время в которое будем парсить то что передал пользователь
                 // делаем это что бы если пользователь напишет только время (тогда автоматом смотрится нынешний день
 
@@ -34,39 +39,41 @@ namespace Dep406Bot.Commands
                 schApiLink = Environment.GetEnvironmentVariable("ScheduleAPILink") + "/schedule/rooms/name/" + mes[1] + "/today?" + mes[2]; //$"{queryString}"
             }
 
-                using (HttpClient APIlient = new HttpClient())
-                {
-                    try
-                    {
-                        HttpResponseMessage response = await APIlient.GetAsync(schApiLink);
-                        response.EnsureSuccessStatusCode();
+            using HttpClient APIlient = new();
+            try
+            {
+                HttpResponseMessage response = await APIlient.GetAsync(schApiLink, cancellationToken).ConfigureAwait(false);
 
-                        string responseBody = await response.Content.ReadAsStringAsync();
-                        Console.WriteLine("Ответ от API: " + responseBody);
+                var responseBody = await response
+                    .EnsureSuccessStatusCode()
+                    .Content
+                    .ReadAsStringAsync(cancellationToken)
+                    .ConfigureAwait(false);
 
-                        // Десериализация JSON в объект
-                        var data = JsonSerializer.Deserialize<string[]>(responseBody);
+                Console.WriteLine("Ответ от API: " + responseBody);
+
+                // Десериализация JSON в объект
+                var data = JsonSerializer.Deserialize<string[]>(responseBody);
 
                         
-                        await client.SendMessage(
-                                update.Message.Chat.Id,
-                                "test"
-                                );
+                await client.SendMessage(
+                        update.Message.Chat.Id,
+                        "test"
+                        );
 
-                    }
-                    catch (HttpRequestException e)
-                    {
-                        Console.WriteLine("\nОшибка HTTP-запроса: " + e.Message);
-                    }
-                    catch (JsonException e)
-                    {
-                        Console.WriteLine("\nОшибка при десериализации JSON: " + e.Message);
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine("\nПроизошла неизвестная ошибка: " + e.Message);
-                    }
-                }
+            }
+            catch (HttpRequestException e)
+            {
+                Console.WriteLine("\nОшибка HTTP-запроса: " + e.Message);
+            }
+            catch (JsonException e)
+            {
+                Console.WriteLine("\nОшибка при десериализации JSON: " + e.Message);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("\nПроизошла неизвестная ошибка: " + e.Message);
+            }
         }
     }
 }
