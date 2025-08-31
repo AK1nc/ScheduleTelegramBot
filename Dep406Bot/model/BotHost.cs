@@ -1,10 +1,17 @@
-﻿using Dep406Bot.Interface;
+﻿using Dep406Bot.CustomAttribute;
+using Dep406Bot.Data;
+using Dep406Bot.Data.Interface;
+using Dep406Bot.Interface;
+using Dep406Bot.Services;
+using Microsoft.Extensions.Hosting;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.Unicode;
 using System.Threading.Tasks;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
@@ -15,54 +22,43 @@ using Telegram.Bot.Types.ReplyMarkups;
 
 namespace Dep406Bot.model
 {
-    public class BotHost
+    public class BotHost(IHttpAPIClient APIclient, IChatHistory DBChatHistory, string Token) : IHostedService, IDisposable
     {
-        // Это клиент для работы с Telegram Bot API, который позволяет отправлять сообщения, управлять ботом, подписываться на обновления и многое другое.
-        private ITelegramBotClient _botClient;
+        //// Это клиент для работы с Telegram Bot API, который позволяет отправлять сообщения, управлять ботом, подписываться на обновления и многое другое.
+        //private ITelegramBotClient _botClient;
 
-        // Это объект с настройками работы бота. Здесь мы будем указывать, какие типы Update мы будем получать, Timeout бота и так далее.
-        private ReceiverOptions _receiverOptions;
+        //// Это объект с настройками работы бота. Здесь мы будем указывать, какие типы Update мы будем получать, Timeout бота и так далее.
+        //private ReceiverOptions _receiverOptions;
 
         // словарь с набором команд
         private Dictionary<string, Type> _keyCommand = new Dictionary<string, Type>();
+        private Dictionary<string, Type> _keyCallbackQuery = new Dictionary<string, Type>();    
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="Token"></param>
-        public BotHost(string Token)
-        {
-            _botClient = new TelegramBotClient(Token); // Присваиваем нашей переменной значение, в параметре передаем Token, полученный от BotFather
-            _receiverOptions = new ReceiverOptions // Также присваем значение настройкам бота
+        private ITelegramBotClient _botClient = new TelegramBotClient(Token); // Присваиваем нашей переменной значение, в параметре передаем Token, полученный от BotFather
+        private ReceiverOptions _receiverOptions = new ReceiverOptions // Также присваем значение настройкам бота
             {
                 AllowedUpdates = new[] // Тут указываем типы получаемых Update`ов, о них подробнее расказано тут https://core.telegram.org/bots/api#update
                 {
                 UpdateType.Message, // Сообщения (текст, фото/видео, голосовые/видео сообщения и т.д.)
-            }
-            };
-        }
+                UpdateType.CallbackQuery,
+                }
+};
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public async Task BotStart()
-        {
-
-            ReflexsionConfigurateCommand();
-
-            using var cts = new CancellationTokenSource();
-
-            // UpdateHander - обработчик приходящих Update`ов
-            // ErrorHandler - обработчик ошибок, связанных с Bot API
-            _botClient.StartReceiving(UpdateHandler, ErrorHandler, _receiverOptions, cts.Token); // Запускаем бота
-
-            var me = await _botClient.GetMe(); // Создаем переменную, в которую помещаем информацию о нашем боте.
-
-            Console.WriteLine($"{me.FirstName} запущен!");
-
-            await Task.Delay(-1); // Устанавливаем бесконечную задержку, чтобы наш бот работал постоянно
-        }
+/// <summary>
+/// 
+/// </summary>
+/// <param name="Token"></param>
+//public BotHost()
+//        {
+//            _botClient = new TelegramBotClient(Token); // Присваиваем нашей переменной значение, в параметре передаем Token, полученный от BotFather
+//            _receiverOptions = new ReceiverOptions // Также присваем значение настройкам бота
+//            {
+//                AllowedUpdates = new[] // Тут указываем типы получаемых Update`ов, о них подробнее расказано тут https://core.telegram.org/bots/api#update
+//                {
+//                UpdateType.Message, // Сообщения (текст, фото/видео, голосовые/видео сообщения и т.д.)
+//            }
+//            };
+//        }
 
 
         /// <summary>
@@ -83,15 +79,11 @@ namespace Dep406Bot.model
                     // если это сообщение
                     case UpdateType.Message:
                         {
-
                             var message = update.Message;
-
 
                             var user = message.From;
 
-
                             Console.WriteLine($"{user.FirstName} ({user.Id}) написал сообщение: {message.Text}");
-
 
                             var chat = message.Chat;
 
@@ -104,9 +96,15 @@ namespace Dep406Bot.model
                                         var mes = message.Text.Split(" ");
                                         try { 
                                             var comand = _keyCommand[mes[0]];
-
-                                            if(comand != null) { 
-                                                var command_obj = Activator.CreateInstance(comand);
+                                            ConstructorInfo cinfo = comand.GetConstructor(new Type[] {typeof(IChatHistory), typeof(IHttpAPIClient) });
+                                            if (cinfo == null) {
+                                                cinfo = comand.GetConstructor(new Type[] { });
+                                                var command_obj = cinfo.Invoke(new object[] { });
+                                                comand.GetMethod("Realization").Invoke(command_obj, [botClient, update, null]);
+                                            }
+                                            else
+                                            {
+                                                var command_obj = cinfo.Invoke(new object[] {DBChatHistory, APIclient });
 
                                                 comand.GetMethod("Realization").Invoke(command_obj, [botClient, update, null]);
                                             }
@@ -158,7 +156,6 @@ namespace Dep406Bot.model
 
                                             return;
                                         }
-
                                         if (message.Text == "/reply")
                                         {
                                             // Тут все аналогично Inline клавиатуре, только меняются классы
@@ -203,6 +200,39 @@ namespace Dep406Bot.model
                             }
                             return;
                         }
+                    case UpdateType.CallbackQuery:
+                        {
+                            var callbackQuery = update.CallbackQuery;
+                            string[] data = callbackQuery.Data.Split("/");
+                            var bt = _keyCallbackQuery[data[0].ToString()];
+                            ConstructorInfo cinfo = bt.GetConstructor(new Type[] { typeof(IChatHistory) });
+
+
+                            if (cinfo == null)
+                            {
+                                cinfo = bt.GetConstructor(new Type[] { });
+
+                                if(cinfo == null)
+                                {
+                                    cinfo = bt.GetConstructor(new Type[] { typeof(IChatHistory), typeof(IHttpAPIClient) });
+                                    var command_Obj = cinfo.Invoke(new object[] { DBChatHistory, APIclient });
+                                    bt.GetMethod("Realization").Invoke(command_Obj, [botClient, update, null]);
+                                }
+
+                                var command_obj = cinfo.Invoke(new object[] { });
+
+                                bt.GetMethod("Realization").Invoke(command_obj, [botClient, update, null]);
+                            }
+                            else
+                            {
+                                var command_obj = cinfo.Invoke(new object[] { DBChatHistory });
+
+                                bt.GetMethod("Realization").Invoke(command_obj, [botClient, update, null]);
+                            }
+
+
+                            return;
+                        }
                 }
             }
             catch (Exception ex)
@@ -234,14 +264,15 @@ namespace Dep406Bot.model
             return Task.CompletedTask;
         }
 
-
-        private void ReflexsionConfigurateCommand() 
+        private void ReflexsionConfigurateCommand(Type intrType, IDictionary enm) 
         {
             Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
 
             DescriptionAttribute descriptionAttribute;
 
-            Type interfaceType = typeof(IBotCommand);
+            BotCommandsAtribute customAtribute;
+
+            //Type interfaceType = intrType;
 
             foreach (Assembly assembly in assemblies)
             {
@@ -249,10 +280,22 @@ namespace Dep406Bot.model
                 {
                     foreach (Type type in assembly.GetTypes())
                     {
-                        if (interfaceType.IsAssignableFrom(type) && type.IsClass)
+                        if (intrType.IsAssignableFrom(type) && type.IsClass)
                         {
                             descriptionAttribute = (DescriptionAttribute)type.GetCustomAttribute(typeof(DescriptionAttribute), false);
-                            _keyCommand.Add(descriptionAttribute.Description, type);
+                            if(descriptionAttribute == null) 
+                            {
+                                customAtribute = (BotCommandsAtribute)type.GetCustomAttribute(typeof(BotCommandsAtribute), false);
+                                foreach(string key in customAtribute.CommandMassive) 
+                                {
+                                    enm.Add(key, type);
+                                }
+                            }
+                            else
+                            {
+                                enm.Add(descriptionAttribute.Description, type);
+                            }
+
                         }
                     }
                 }
@@ -265,7 +308,33 @@ namespace Dep406Bot.model
 
         }
 
+        public async Task StartAsync(CancellationToken cancellationToken)
+        {
+            // формируем словари команд и кнопок
+            ReflexsionConfigurateCommand(typeof(IBotCommand), _keyCommand);
+            ReflexsionConfigurateCommand(typeof(IBotCallbackQuery), _keyCallbackQuery);
 
+            using var cts = new CancellationTokenSource();
 
+            // UpdateHander - обработчик приходящих Update`ов
+            // ErrorHandler - обработчик ошибок, связанных с Bot API
+            _botClient.StartReceiving(UpdateHandler, ErrorHandler, _receiverOptions, cts.Token); // Запускаем бота
+
+            var me = await _botClient.GetMe(); // Создаем переменную, в которую помещаем информацию о нашем боте.
+
+            Console.WriteLine($"{me.FirstName} запущен!");
+
+            await Task.Delay(-1); // Устанавливаем бесконечную задержку, чтобы наш бот работал постоянно
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Dispose()
+        {
+            throw new NotImplementedException();
+        }
     }
 }

@@ -1,4 +1,6 @@
-﻿using Dep406Bot.Interface;
+﻿using Dep406Bot.Data.Interface;
+using Dep406Bot.Interface;
+using Dep406Bot.Services;
 using ScheduleTelegramBot.ScheduleAPI;
 using System;
 using System.Collections.Generic;
@@ -13,7 +15,7 @@ using Telegram.Bot.Types;
 namespace Dep406Bot.Commands
 {
     [Description("/преподаватель")]
-    internal class LectorBySurnameCommand : IBotCommand
+    internal class LectorBySurnameCommand(IChatHistory _db, IHttpAPIClient APIclient) : IBotCommand
     {
         public Task ErorHendler()
         {
