@@ -67,11 +67,7 @@ namespace Dep406Bot.Buttons.Schedule
             {
                 HttpResponseMessage responseBody = await _api.GetAsync(schApiLink);
 
-
                 ScheduleStudentLesson[] data = await responseBody.Content.ReadFromJsonAsync<ScheduleStudentLesson[]>();
-
-                // Десериализация JSON в объект SchedultLectorLesson
-                //var data = await _api.DeserializeAPIResponse<IEnumerable<ScheduleStudentLesson>>(responseBody);
 
                 string awnser = $"<pre>📅{data[0].Start.ToString("dddd", new CultureInfo("ru-RU"))}     {data[0].Start.ToString("dd MMMM", new CultureInfo("ru-RU"))}</pre>\n\n";
 
